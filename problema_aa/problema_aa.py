@@ -139,6 +139,243 @@ def dibujar_badge(superficie, fuente, texto, pos, relleno_rgba, borde_rgb, color
     badge.blit(img, (pad_x, pad_y))
     superficie.blit(badge, rect.topleft)
 
+def dibujar_grafico_carrera(
+    screen,
+    tiempos,
+    pos_tortuga,
+    pos_liebre,
+    rect,
+    font=None,
+    titulo="Posición vs tiempo"
+):
+    """
+    Dibuja un gráfico dentro del juego usando pygame.
+
+    Parámetros
+    ----------
+    screen : pygame.Surface
+        Superficie principal donde se hará blit del gráfico.
+    tiempos : array-like
+        Arreglo de tiempos.
+    pos_tortuga : array-like
+        Arreglo de posiciones de la tortuga.
+    pos_liebre : array-like
+        Arreglo de posiciones de la liebre.
+    rect : tuple[int, int, int, int]
+        Región donde se dibujará el gráfico: (x, y, ancho, alto).
+    font : pygame.font.Font o None
+        Fuente para texto. Si es None, se crea una por defecto.
+    titulo : str
+        Título del gráfico.
+    """
+
+    # -----------------------------
+    # Validación mínima
+    # -----------------------------
+    tiempos = np.asarray(tiempos, dtype=float)
+    pos_tortuga = np.asarray(pos_tortuga, dtype=float)
+    pos_liebre = np.asarray(pos_liebre, dtype=float)
+
+    if not (len(tiempos) == len(pos_tortuga) == len(pos_liebre)):
+        raise ValueError("Los tres arreglos deben tener la misma longitud.")
+
+    if len(tiempos) < 2:
+        return
+
+    if font is None:
+        font = pygame.font.SysFont("consolas", 16)
+    font_titulo = pygame.font.SysFont("consolas", 18, bold=True)
+
+    # -----------------------------
+    # Región del gráfico
+    # -----------------------------
+    x0, y0, w, h = rect
+
+    # Surface independiente para el gráfico
+    grafico = pygame.Surface((w, h), pygame.SRCALPHA)
+
+    # -----------------------------
+    # Estética
+    # -----------------------------
+    COLOR_FONDO = (20, 24, 38, 185)      # azul grisáceo con buen contraste
+    COLOR_BORDE = (85, 95, 125)
+    COLOR_TEXTO = (255, 255, 255)
+    COLOR_EJES = (255, 255, 255)
+    COLOR_GRID = (190, 210, 220, 60)
+    COLOR_TORTUGA = (120, 230, 160)
+    COLOR_LIEBRE = (245, 220, 90)
+
+    grafico.fill(COLOR_FONDO)
+    pygame.draw.rect(grafico, COLOR_BORDE, (0, 0, w, h), width=2, border_radius=8)
+
+    # -----------------------------
+    # Márgenes internos del gráfico
+    # -----------------------------
+    margen_izq = 60
+    margen_der = 20
+    margen_sup = 40
+    margen_inf = 45
+
+    plot_x = margen_izq
+    plot_y = margen_sup
+    plot_w = w - margen_izq - margen_der
+    plot_h = h - margen_sup - margen_inf
+
+    # -----------------------------
+    # Rango de datos
+    # -----------------------------
+    t_min = np.min(tiempos)
+    t_max = np.max(tiempos)
+
+    y_min_datos = min(np.min(pos_tortuga), np.min(pos_liebre))
+    y_max_datos = max(np.max(pos_tortuga), np.max(pos_liebre))
+
+    # Para que no quede pegado
+    if np.isclose(t_min, t_max):
+        t_max = t_min + 1.0
+    if np.isclose(y_min_datos, y_max_datos):
+        y_max_datos = y_min_datos + 1.0
+
+    # Si quieres que empiece en cero cuando tenga sentido:
+    y_min = min(0.0, y_min_datos)
+    y_max = y_max_datos
+
+    # -----------------------------
+    # Funciones de mapeo
+    # -----------------------------
+    def map_x(t):
+        return plot_x + (t - t_min) / (t_max - t_min) * plot_w
+
+    def map_y(y):
+        return plot_y + plot_h - (y - y_min) / (y_max - y_min) * plot_h
+
+    # -----------------------------
+    # Grid y ticks
+    # -----------------------------
+    n_ticks_x = 5
+    n_ticks_y = 5
+    tick_len = 6
+
+    # Eje x
+    for i in range(n_ticks_x + 1):
+        frac = i / n_ticks_x
+        tx = plot_x + frac * plot_w
+        valor_t = t_min + frac * (t_max - t_min)
+
+        # línea de grid
+        pygame.draw.line(grafico, COLOR_GRID, (tx, plot_y), (tx, plot_y + plot_h), 1)
+
+        # tick
+        pygame.draw.line(
+            grafico,
+            COLOR_EJES,
+            (tx, plot_y + plot_h),
+            (tx, plot_y + plot_h + tick_len),
+            2
+        )
+
+        # etiqueta
+        texto = font.render(f"{valor_t:.1f}", True, COLOR_TEXTO)
+        rect_txt = texto.get_rect(center=(tx, plot_y + plot_h + 18))
+        grafico.blit(texto, rect_txt)
+
+    # Eje y
+    for i in range(n_ticks_y + 1):
+        frac = i / n_ticks_y
+        ty = plot_y + plot_h - frac * plot_h
+        valor_y = y_min + frac * (y_max - y_min)
+
+        # línea de grid
+        pygame.draw.line(grafico, COLOR_GRID, (plot_x, ty), (plot_x + plot_w, ty), 1)
+
+        # tick
+        pygame.draw.line(
+            grafico,
+            COLOR_EJES,
+            (plot_x - tick_len, ty),
+            (plot_x, ty),
+            2
+        )
+
+        # etiqueta
+        texto = font.render(f"{valor_y:.1f}", True, COLOR_TEXTO)
+        rect_txt = texto.get_rect(right=plot_x - 10, centery=ty)
+        grafico.blit(texto, rect_txt)
+
+    # -----------------------------
+    # Ejes
+    # -----------------------------
+    pygame.draw.line(
+        grafico,
+        COLOR_EJES,
+        (plot_x, plot_y + plot_h),
+        (plot_x + plot_w, plot_y + plot_h),
+        2
+    )
+    pygame.draw.line(
+        grafico,
+        COLOR_EJES,
+        (plot_x, plot_y),
+        (plot_x, plot_y + plot_h),
+        2
+    )
+
+    # -----------------------------
+    # Convertir datos a puntos
+    # -----------------------------
+    puntos_tortuga = [(map_x(t), map_y(y)) for t, y in zip(tiempos, pos_tortuga)]
+    puntos_liebre = [(map_x(t), map_y(y)) for t, y in zip(tiempos, pos_liebre)]
+
+    # -----------------------------
+    # Dibujar curvas
+    # -----------------------------
+    if len(puntos_tortuga) >= 2:
+        pygame.draw.lines(grafico, COLOR_TORTUGA, False, puntos_tortuga, 3)
+
+    if len(puntos_liebre) >= 2:
+        pygame.draw.lines(grafico, COLOR_LIEBRE, False, puntos_liebre, 3)
+
+    # Marcar último punto
+    pygame.draw.circle(grafico, COLOR_TORTUGA, (int(puntos_tortuga[-1][0]), int(puntos_tortuga[-1][1])), 4)
+    pygame.draw.circle(grafico, COLOR_LIEBRE, (int(puntos_liebre[-1][0]), int(puntos_liebre[-1][1])), 4)
+
+    # -----------------------------
+    # Título
+    # -----------------------------
+    txt_titulo = font_titulo.render(titulo, True, COLOR_TEXTO)
+    grafico.blit(txt_titulo, (12, 8))
+
+    # -----------------------------
+    # Etiquetas de ejes
+    # -----------------------------
+    txt_x = font.render("Tiempo", True, COLOR_TEXTO)
+    rect_x = txt_x.get_rect(center=(plot_x + plot_w / 2, h - 14))
+    grafico.blit(txt_x, rect_x)
+
+    txt_y = font.render("Posición", True, COLOR_TEXTO)
+    txt_y_rot = pygame.transform.rotate(txt_y, 90)
+    rect_y = txt_y_rot.get_rect(center=(18, plot_y + plot_h / 2))
+    grafico.blit(txt_y_rot, rect_y)
+
+    # -----------------------------
+    # Leyenda
+    # -----------------------------
+    ley_x = w - 150
+    ley_y = 10
+
+    pygame.draw.line(grafico, COLOR_TORTUGA, (ley_x, ley_y + 10), (ley_x + 24, ley_y + 10), 3)
+    txt_tort = font.render("Tortuga", True, COLOR_TEXTO)
+    grafico.blit(txt_tort, (ley_x + 32, ley_y + 2))
+
+    pygame.draw.line(grafico, COLOR_LIEBRE, (ley_x, ley_y + 32), (ley_x + 24, ley_y + 32), 3)
+    txt_lieb = font.render("Liebre", True, COLOR_TEXTO)
+    grafico.blit(txt_lieb, (ley_x + 32, ley_y + 24))
+
+    # -----------------------------
+    # Colocar gráfico en pantalla
+    # -----------------------------
+    screen.blit(grafico, (x0, y0))
+
 def correr_simulacion():
     pygame.init()
     pygame.display.set_caption("Conejo vs Tortuga")
@@ -168,6 +405,10 @@ def correr_simulacion():
 
     velocidad_tortuga = 0.3 # m/s
     velocidad_liebre = 0.9 # m/s
+
+    tiempo_array = [tiempo]
+    posicion_tortuga_array = [posicion_inicial_tortuga[1]]
+    posicion_liebre_array = [posicion_inicial_liebre[1]]
 
     direccion = (0, 1)
 
@@ -204,6 +445,10 @@ def correr_simulacion():
                     tiempo_texto_reinicio = 0.8
                     mostrar_ganador = False
 
+                    tiempo_array = [tiempo]
+                    posicion_tortuga_array = [posicion_inicial_tortuga[1]]
+                    posicion_liebre_array = [posicion_inicial_liebre[1]]
+
         pantalla.blit(fondo, (0, 0))
         posicion_tortuga = camara.convertir_a_pixeles(tortuga.pos)
         posicion_liebre = camara.convertir_a_pixeles(liebre.pos)
@@ -233,6 +478,10 @@ def correr_simulacion():
                     (20*tiempo % 70 + posicion_liebre[0], 5*math.sin(5*tiempo) + posicion_liebre[1] - 20),
                     (255, 0, 0)
                 )
+
+            tiempo_array.append(tiempo)
+            posicion_tortuga_array.append(tortuga.pos[1])
+            posicion_liebre_array.append(liebre.pos[1])
         
         if mostrar_reinicio:
             tiempo_texto_reinicio -= dt 
@@ -341,6 +590,14 @@ def correr_simulacion():
                 (24, 52, 68, 210),
                 (100, 190, 220),
                 (120, 220, 255)
+            )
+            dibujar_grafico_carrera(
+                pantalla,
+                tiempo_array,
+                posicion_tortuga_array,
+                posicion_liebre_array,
+                font = fuente_menor,
+                rect=(700, 160, 400, 250)
             )
         
         pygame.display.flip()
