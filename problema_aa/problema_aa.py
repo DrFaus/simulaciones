@@ -2,6 +2,7 @@ import pygame
 import numpy as np 
 import math
 import sys
+import csv
 
 MALLA_MENOR = (36, 40, 56)
 MALLA_MAYOR = (62, 70, 96)
@@ -376,6 +377,10 @@ def dibujar_grafico_carrera(
     # -----------------------------
     screen.blit(grafico, (x0, y0))
 
+def guardar_csv_numpy(tiempos, pos_tortuga, pos_liebre, nombre_archivo="carrera.csv"):
+    datos = np.column_stack((tiempos, pos_tortuga, pos_liebre))
+    np.savetxt(nombre_archivo, datos, delimiter=",", header="tiempo,tortuga,liebre", comments="")
+
 def correr_simulacion():
     pygame.init()
     pygame.display.set_caption("Conejo vs Tortuga")
@@ -393,6 +398,7 @@ def correr_simulacion():
 
     tiempo = 0.0
     tiempo_texto_reinicio = 0.0
+    tiempo_a = 0.0
 
     paused = False
     liebre_corriendo = True 
@@ -436,6 +442,7 @@ def correr_simulacion():
                     paused = not paused 
                 elif evento.key == pygame.K_a:
                     liebre_corriendo = not liebre_corriendo
+                    tiempo_a = tiempo
                 elif evento.key == pygame.K_r:
                     tiempo = 0.0 
                     tortuga = Particula(posicion_inicial_tortuga, velocidad_tortuga, direccion, dt)
@@ -529,6 +536,14 @@ def correr_simulacion():
             (170, 180, 200)
         )
 
+        dibujar_texto(
+            pantalla, 
+            fuente_menor,
+            f"tiempo guardado: {tiempo_a: .2f}",
+            (34, 170),
+            (170, 180, 200)
+        )
+
         dibujar_badge(
             pantalla,
             fuente_menor,
@@ -599,6 +614,7 @@ def correr_simulacion():
                 font = fuente_menor,
                 rect=(700, 160, 400, 250)
             )
+            guardar_csv_numpy(tiempo_array, posicion_tortuga_array, posicion_liebre_array)
         
         pygame.display.flip()
 
